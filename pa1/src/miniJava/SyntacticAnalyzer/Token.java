@@ -3,20 +3,29 @@ package miniJava.SyntacticAnalyzer;
 public class Token {
 	private TokenType _type;
 	private String _text;
-	
-	public Token(TokenType type, String text) {
-		// DONE: Store the token's type and text
+	private int _line;
+	private int _column;
+
+	public Token(TokenType type, String text, int line, int column) {
 		this._type = type;
 		this._text = text;
+		this._line = line;
+		this._column = column;
 	}
-	
+
 	public TokenType getTokenType() {
-		// DONE: Return the token type
-		return this._type;
+		return _type;
 	}
-	
+
 	public String getTokenText() {
-		// DONE: Return the token text
-		return this._text;
+		return _text;
+	}
+
+	public int getLine() {
+		return _line;
+	}
+
+	public int getColumn() {
+		return _column;
 	}
 }

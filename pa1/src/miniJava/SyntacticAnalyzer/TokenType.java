@@ -1,18 +1,14 @@
 package miniJava.SyntacticAnalyzer;
 
 public enum TokenType {
-    
+
     CLASS, PUBLIC, PRIVATE, STATIC, VOID, INT, BOOLEAN, IF, ELSE, WHILE, RETURN, TRUE, FALSE, THIS, NEW,
 
-    
     IDENTIFIER, INTEGER_LITERAL,
 
-    
     OPERATOR,
 
-    
     LPAREN, RPAREN, LCURLY, RCURLY, LSQUARE, RSQUARE, SEMICOLON, COMMA, DOT, EQUALS,
 
-    
     EOT, ERROR
 }

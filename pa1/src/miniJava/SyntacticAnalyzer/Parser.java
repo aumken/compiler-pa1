@@ -33,7 +33,7 @@ public class Parser {
 
 	private void parseClassDeclaration() throws SyntaxError {
 		accept(TokenType.CLASS);
-		accept(TokenType.IDENTIFIER, "36");
+		accept(TokenType.IDENTIFIER);
 		accept(TokenType.LCURLY);
 
 		while (_currentToken.getTokenType() != TokenType.RCURLY) {
@@ -67,8 +67,12 @@ public class Parser {
 	private void parseFieldDeclaration() throws SyntaxError {
 		parseVisibility();
 		parseAccess();
+		if (_currentToken.getTokenType() == TokenType.VOID) {
+			_errors.reportError("'void' is not a valid type for field declarations", _currentToken.getTokenText());
+			throw new SyntaxError();
+		}
 		parseType();
-		accept(TokenType.IDENTIFIER, "71");
+		accept(TokenType.IDENTIFIER);
 		if (_currentToken.getTokenType() == TokenType.SEMICOLON) {
 			accept(TokenType.SEMICOLON);
 		} else {
@@ -78,14 +82,16 @@ public class Parser {
 	}
 
 	private void parseMethodDeclaration() throws SyntaxError {
+		boolean onVoid = false;
 		parseVisibility();
 		parseAccess();
 		if (_currentToken.getTokenType() == TokenType.VOID) {
 			accept(TokenType.VOID);
+			onVoid = true;
 		} else {
 			parseType();
 		}
-		accept(TokenType.IDENTIFIER, "88");
+		accept(TokenType.IDENTIFIER);
 		if (_currentToken.getTokenType() == TokenType.LPAREN) {
 			accept(TokenType.LPAREN);
 			if (_currentToken.getTokenType() != TokenType.RPAREN) {
@@ -95,7 +101,7 @@ public class Parser {
 		}
 		if (_currentToken.getTokenType() == TokenType.LCURLY) {
 			parseBlock();
-		} else if (_currentToken.getTokenType() == TokenType.SEMICOLON) {
+		} else if (_currentToken.getTokenType() == TokenType.SEMICOLON && !onVoid) {
 			accept(TokenType.SEMICOLON);
 		} else {
 			_errors.reportError("Expected method body or semicolon, but got ", _currentToken.getTokenText());
@@ -130,7 +136,7 @@ public class Parser {
 				throw new SyntaxError();
 			}
 		} else if (_currentToken.getTokenType() == TokenType.IDENTIFIER) {
-			accept(TokenType.IDENTIFIER, "127");
+			accept(TokenType.IDENTIFIER);
 			if (_currentToken.getTokenType() == TokenType.LSQUARE) {
 				accept(TokenType.LSQUARE);
 				if (_currentToken.getTokenType() != TokenType.RSQUARE) {
@@ -146,11 +152,11 @@ public class Parser {
 
 	private void parseParameterList() throws SyntaxError {
 		parseType();
-		accept(TokenType.IDENTIFIER, "140");
+		accept(TokenType.IDENTIFIER);
 		while (_currentToken.getTokenType() == TokenType.COMMA) {
 			accept(TokenType.COMMA);
 			parseType();
-			accept(TokenType.IDENTIFIER, "144");
+			accept(TokenType.IDENTIFIER);
 		}
 	}
 
@@ -192,6 +198,9 @@ public class Parser {
 
 	private void parseLocalDeclaration() throws SyntaxError {
 		int skip = 0;
+		boolean bracketed = false;
+		boolean emptyInsideBrackets = false;
+		boolean method = false;
 		if (_currentToken.getTokenType() == TokenType.INT) {
 			accept(TokenType.INT);
 			if (_currentToken.getTokenType() == TokenType.LSQUARE) {
@@ -205,34 +214,63 @@ public class Parser {
 				throw new SyntaxError();
 			}
 		} else if (_currentToken.getTokenType() == TokenType.IDENTIFIER) {
-			accept(TokenType.IDENTIFIER, "127");
+			accept(TokenType.IDENTIFIER);
 			if (_currentToken.getTokenType() == TokenType.LSQUARE) {
 				accept(TokenType.LSQUARE);
 				if (_currentToken.getTokenType() != TokenType.RSQUARE) {
 					skip = 1;
 					parseExpression();
+				} else {
+					emptyInsideBrackets = true;
 				}
 				accept(TokenType.RSQUARE);
+				bracketed = true;
+			} else {
+				if (_currentToken.getTokenType() == TokenType.LPAREN) {
+					accept(TokenType.LPAREN);
+					skip = 1;
+					if (_currentToken.getTokenType() != TokenType.RPAREN) {
+						parseArgumentList();
+					}
+					accept(TokenType.RPAREN);
+					method = true;
+				}
 			}
 		} else {
 			_errors.reportError("Expected type, but got ", _currentToken.getTokenText());
 			throw new SyntaxError();
 		}
 
-		if (_currentToken.getTokenType() == TokenType.DOT) {
+		if (_currentToken.getTokenType() == TokenType.DOT && !bracketed) {
 			while (_currentToken.getTokenType() == TokenType.DOT) {
 				accept(TokenType.DOT);
-				accept(TokenType.IDENTIFIER, "191");
+				accept(TokenType.IDENTIFIER);
+				if (_currentToken.getTokenType() == TokenType.LSQUARE) {
+					accept(TokenType.LSQUARE);
+					if (_currentToken.getTokenType() != TokenType.RSQUARE) {
+						skip = 1;
+						parseExpression();
+					}
+					accept(TokenType.RSQUARE);
+				} else if (_currentToken.getTokenType() == TokenType.LPAREN) {
+					accept(TokenType.LPAREN);
+					skip = 1;
+					if (_currentToken.getTokenType() != TokenType.RPAREN) {
+						parseArgumentList();
+					}
+					accept(TokenType.RPAREN);
+					method = true;
+				}
 			}
 		} else {
-			if (skip == 0) {
-				accept(TokenType.IDENTIFIER, "192");
+			if ((skip == 0 && _currentToken.getTokenType() == TokenType.IDENTIFIER) || emptyInsideBrackets) {
+				accept(TokenType.IDENTIFIER);
 			}
 		}
 		if (_currentToken.getTokenType() == TokenType.EQUALS) {
 			accept(TokenType.EQUALS);
 			parseExpression();
-		} else if (_currentToken.getTokenType() == TokenType.SEMICOLON) {
+		} else if (_currentToken.getTokenType() == TokenType.SEMICOLON && !method) {
 			_errors.reportError("Local variable declaration without initialization is not allowed: ",
 					_currentToken.getTokenText());
 			throw new SyntaxError();
@@ -269,24 +307,34 @@ public class Parser {
 	}
 
 	private void parseExpressionStatement() throws SyntaxError {
+		boolean didSomething = false;
 		if (isType(_currentToken.getTokenType())) {
+			didSomething = true;
 			parseType();
-			accept(TokenType.IDENTIFIER, "207");
+			accept(TokenType.IDENTIFIER);
 			if (_currentToken.getTokenType() == TokenType.EQUALS) {
 				accept(TokenType.EQUALS);
 				parseExpression();
 			}
 		} else if (_currentToken.getTokenType() == TokenType.THIS
 				|| _currentToken.getTokenType() == TokenType.IDENTIFIER) {
-			parseReference();
+			didSomething = parseReference();
 			if (_currentToken.getTokenType() == TokenType.EQUALS) {
 				accept(TokenType.EQUALS);
 				parseExpression();
+				didSomething = true;
 			}
 		} else {
 			parseExpression();
 		}
+		if (!didSomething) {
+			if (_currentToken.getTokenType() == TokenType.SEMICOLON) {
+				_errors.reportError("Empty statement is not allowed: ", _currentToken.getTokenText());
+				throw new SyntaxError();
+			}
+		}
 		accept(TokenType.SEMICOLON);
+
 	}
 
 	private void parseExpression() throws SyntaxError {
@@ -394,7 +442,7 @@ public class Parser {
 			accept(TokenType.RSQUARE);
 		} else {
 
-			accept(TokenType.IDENTIFIER, "331");
+			accept(TokenType.IDENTIFIER);
 			if (_currentToken.getTokenType() == TokenType.LPAREN) {
 				accept(TokenType.LPAREN);
 				accept(TokenType.RPAREN);
@@ -406,11 +454,14 @@ public class Parser {
 		}
 	}
 
-	private void parseReference() throws SyntaxError {
+	private boolean parseReference() throws SyntaxError {
+		boolean addedSomething = false;
+		boolean hasIndexed = false;
+
 		if (_currentToken.getTokenType() == TokenType.THIS) {
 			accept(TokenType.THIS);
 		} else if (_currentToken.getTokenType() == TokenType.IDENTIFIER) {
-			accept(TokenType.IDENTIFIER, "347");
+			accept(TokenType.IDENTIFIER);
 		} else {
 			_errors.reportError("Expected 'this' or identifier, but got ", _currentToken.getTokenText());
 			throw new SyntaxError();
@@ -419,22 +470,37 @@ public class Parser {
 		while (true) {
 			if (_currentToken.getTokenType() == TokenType.DOT) {
 				accept(TokenType.DOT);
-				accept(TokenType.IDENTIFIER, "356");
+				accept(TokenType.IDENTIFIER);
 			} else if (_currentToken.getTokenType() == TokenType.LSQUARE) {
+				if (hasIndexed) {
+					_errors.reportError("Multiple indexing operations are not allowed: ", _currentToken.getTokenText());
+					throw new SyntaxError();
+				}
 				accept(TokenType.LSQUARE);
 				parseExpression();
 				accept(TokenType.RSQUARE);
 				checkArrayIndexing();
+				hasIndexed = true;
+				if (_currentToken.getTokenType() == TokenType.LPAREN) {
+					_errors.reportError("Array access on method call is not allowed: ", _currentToken.getTokenText());
+					throw new SyntaxError();
+				}
 			} else if (_currentToken.getTokenType() == TokenType.LPAREN) {
 				accept(TokenType.LPAREN);
 				if (_currentToken.getTokenType() != TokenType.RPAREN) {
 					parseArgumentList();
 				}
 				accept(TokenType.RPAREN);
+				addedSomething = true;
+				if (_currentToken.getTokenType() == TokenType.LSQUARE) {
+					_errors.reportError("Array access on method call is not allowed: ", _currentToken.getTokenText());
+					throw new SyntaxError();
+				}
 			} else {
 				break;
 			}
 		}
+		return addedSomething;
 	}
 
 	private void checkArrayIndexing() throws SyntaxError {
@@ -462,17 +528,6 @@ public class Parser {
 		} else {
 			_errors.reportError("Expected token ", expectedType.toString(),
 					", but got ", _currentToken.getTokenText(), " of type ", _currentToken.getTokenType().toString());
-			throw new SyntaxError();
-		}
-	}
-
-	private void accept(TokenType expectedType, String location) throws SyntaxError {
-		if (_currentToken.getTokenType() == expectedType) {
-			_currentToken = _scanner.scan();
-		} else {
-			_errors.reportError("Expected token ", expectedType.toString(),
-					", but got ", _currentToken.getTokenText(), _currentToken.getTokenType().toString(), " at ",
-					location);
 			throw new SyntaxError();
 		}
 	}

@@ -37,6 +37,9 @@ public class Scanner {
 				return scan();
 			} else if (_currentChar == '*') {
 				skipMultiLineComment();
+				if (_currentChar == (char) -1) {
+					return makeToken(TokenType.EOT);
+				}
 				return scan();
 			} else {
 				return makeToken(TokenType.OPERATOR);
@@ -133,6 +136,8 @@ public class Scanner {
 
 	private void skipMultiLineComment() {
 		boolean endFound = false;
+		skipIt();
+		
 		while (!endFound && _currentChar != (char) -1) {
 			if (_currentChar == '*') {
 				skipIt();
